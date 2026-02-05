@@ -4,32 +4,31 @@ import android.app.Activity
 import android.content.Intent
 import com.tiktok.open.sdk.auth.AuthApi
 import com.tiktok.open.sdk.auth.AuthRequest
+import com.tiktok.open.sdk.auth.utils.PKCEUtils
 
 class TikTokAuthManager(private val activity: Activity) {
 
-    // You will get this Key from the TikTok Developer Portal
-    private val clientKey = "YOUR_TIKTOK_CLIENT_KEY_HERE"
+    private val clientKey = com.example.socialuploader.BuildConfig.TIKTOK_KEY
+    private val redirectUri = "https://io.github.com/jazgogmain-png/callback"
 
     fun login() {
+        val codeVerifier = PKCEUtils.generateCodeVerifier()
         val request = AuthRequest(
             clientKey = clientKey,
-            // These scopes are what allow us to actually post videos
             scope = "user.info.basic,video.upload,video.publish",
-            // This MUST match the Redirect URI in the TikTok Portal
-            redirectUri = "driftinggrandma://callback"
+            redirectUri = redirectUri,
+            codeVerifier = codeVerifier
         )
 
         val authApi = AuthApi(activity)
         authApi.authorize(request)
     }
 
-    // This is called when TikTok sends the result back to your app
     fun handleAuthResponse(intent: Intent): String? {
         val authApi = AuthApi(activity)
-        val response = authApi.getAuthResponse(intent)
+        val response = authApi.getAuthResponseFromIntent(intent, redirectUri)
 
         return if (response != null && response.isSuccess) {
-            // This code is what we exchange for a "Post Token"
             response.authCode
         } else {
             null
