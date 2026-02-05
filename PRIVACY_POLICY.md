@@ -1,11 +1,20 @@
-# Privacy Policy for SocialUploader
+# 🏎️ SocialUploader: Privacy Policy
 
-**Effective Date:** February 2026
+**Project:** Drifting Grandma Social Automation  
+**Version:** 1.0 (2026)
 
-SocialUploader is a personal automation tool. We respect your privacy.
-1. **Data Collection:** This app does not collect, store, or share any personal data with third parties.
-2. **TikTok Integration:** The app uses the TikTok SDK to allow you to post videos. Your login credentials are handled by TikTok, not us.
-3. **Storage:** Post tokens are stored locally on your device in encrypted storage and are never transmitted to any external server other than TikTok.
-4. **Permissions:** We only request storage access to select your videos and internet access to upload them.
+### 01. The No-Nonsense Clause
+SocialUploader is a private tool built for creators, not data brokers. We hate ads, we hate bloat, and we definitely don't want your data.
 
-**Contact:** jazgogmain-png on GitHub https://github.com/jazgogmain-png
+### 02. What We Access
+* **Storage:** We only touch the folders you tell us to so we can find your `.mp4` files.
+* **Network:** We talk to TikTok’s official API to upload your videos. That’s it.
+
+### 03. Token Security
+Your TikTok login tokens are stored in **EncryptedSharedPreferences** on your physical device. We never see them, and they never touch our servers (mostly because we don't have any).
+
+### 04. Third Parties
+The only third party involved is **TikTok**. Their privacy policy applies once the video leaves this app.
+
+### 05. Contact
+If you have questions, open an issue on this GitHub repo. Keep drifting.
