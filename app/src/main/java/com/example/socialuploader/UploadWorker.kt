@@ -1,80 +1,114 @@
 package com.example.socialuploader
 
 import android.content.Context
+import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import io.ktor.client.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 class UploadWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
-        val token = inputData.getString("TOKEN")?.trim() ?: return Result.failure()
-        val videoUriString = inputData.getString("VIDEO_URI") ?: return Result.failure()
-        val videoUri = Uri.parse(videoUriString)
-        val caption = inputData.getString("CAPTION") ?: "Drifting Grandma"
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
 
-        return try {
-            val client = HttpClient()
-            val fileSize = getFileSize(videoUri)
-            Log.d("LOLA_DEBUG", "WORKER_START: Initializing with size $fileSize")
-
-            // STEP 1: INITIALIZE (V2 Inbox/Drafts)
-            val initResponse = client.post("https://open.tiktokapis.com/v2/post/publish/inbox/video/init/") {
-                header("Authorization", "Bearer $token")
-                header("Content-Type", "application/json; charset=UTF-8")
-                setBody(JSONObject().apply {
-                    put("post_info", JSONObject().apply {
-                        put("title", caption.take(100))
-                    })
-                    put("source_info", JSONObject().apply {
-                        put("source", "FILE_UPLOAD")
-                        put("video_size", fileSize)
-                        put("chunk_size", fileSize)
-                        put("total_chunk_count", 1)
-                    })
-                }.toString())
-            }
-
-            val initBody = initResponse.bodyAsText()
-            Log.d("LOLA_DEBUG", "WORKER_INIT_STATUS: ${initResponse.status}")
-            Log.d("LOLA_DEBUG", "WORKER_INIT_BODY: $initBody")
-
-            if (initResponse.status == HttpStatusCode.OK) {
-                // STEP 2: PUSH BYTES
-                val uploadUrl = JSONObject(initBody).getJSONObject("data").getString("upload_url")
-                val videoBytes = applicationContext.contentResolver.openInputStream(videoUri)?.use { it.readBytes() }
-
-                if (videoBytes != null) {
-                    val pushResponse = client.put(uploadUrl) {
-                        header("Content-Range", "bytes 0-${videoBytes.size - 1}/${videoBytes.size}")
-                        header("Content-Length", videoBytes.size.toString())
-                        header("Content-Type", "video/mp4")
-                        setBody(videoBytes)
-                    }
-                    Log.d("LOLA_DEBUG", "WORKER_PUSH_STATUS: ${pushResponse.status}")
-                    Result.success()
-                } else {
-                    Log.e("LOLA_DEBUG", "WORKER_FAIL: Bytes null")
-                    Result.failure()
-                }
-            } else {
-                Result.failure()
+    private fun playSalute(isVictory: Boolean) {
+        val soundRes = if (isVictory) R.raw.lola_victory else R.raw.lola_stall
+        try {
+            MediaPlayer.create(applicationContext, soundRes).apply {
+                setOnCompletionListener { release() }
+                start()
             }
         } catch (e: Exception) {
-            Log.e("LOLA_DEBUG", "WORKER_CRITICAL: ${e.message}")
-            Result.failure()
+            Log.e("LOLA_DEBUG", "AUDIO_ERR: The victory horn is broken.")
         }
     }
 
-    private fun getFileSize(uri: Uri): Long {
+    override suspend fun doWork(): Result {
+        val rawToken = inputData.getString("TOKEN")?.trim() ?: ""
+        val videoUriString = inputData.getString("VIDEO_URI") ?: return Result.failure()
+        val rawCaption = inputData.getString("CAPTION") ?: "Lola is Drifting! 🏎️"
+
+        // LOLA_SCRUB: Deep clean the token and caption
+        val token = rawToken.replace("Bearer ", "").trim()
+        val cleanCaption = rawCaption.replace("*", "").replace("\"", "").take(100).trim()
+
+        if (token.isEmpty()) {
+            Log.e("LOLA_DEBUG", "WORKER_FAIL: The Gatekeeper forgot the key (Token is empty).")
+            playSalute(false)
+            return Result.failure()
+        }
+
         return try {
-            applicationContext.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: 0L
-        } catch (e: Exception) { 0L }
+            val videoUri = Uri.parse(videoUriString)
+            val videoBytes = applicationContext.contentResolver.openInputStream(videoUri)?.use { it.readBytes() }
+                ?: throw Exception("Could not read video bytes.")
+
+            Log.d("LOLA_DEBUG", "PHASE 1: CONTACTING ELVES (Init)...")
+
+            // INIT REQUEST
+            val initJson = JSONObject().apply {
+                put("post_info", JSONObject().apply { put("title", cleanCaption) })
+                put("source_info", JSONObject().apply {
+                    put("source", "FILE_UPLOAD")
+                    put("video_size", videoBytes.size)
+                    put("chunk_size", videoBytes.size)
+                    put("total_chunk_count", 1)
+                })
+            }
+
+            val initRequest = Request.Builder()
+                .url("https://open.tiktokapis.com/v2/post/publish/inbox/video/init/")
+                .addHeader("Authorization", "Bearer $token")
+                .addHeader("Content-Type", "application/json; charset=UTF-8")
+                .post(initJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(initRequest).execute().use { response ->
+                val body = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    Log.e("LOLA_DEBUG", "INIT_FAIL: Code ${response.code} | Body: $body")
+                    playSalute(false)
+                    return Result.failure()
+                }
+
+                val uploadUrl = JSONObject(body).getJSONObject("data").getString("upload_url")
+                Log.d("LOLA_DEBUG", "PHASE 2: ELVES ACCEPTED CRATE. PUSHING BYTES...")
+
+                // PUSH REQUEST
+                val pushRequest = Request.Builder()
+                    .url(uploadUrl)
+                    .addHeader("Content-Range", "bytes 0-${videoBytes.size - 1}/${videoBytes.size}")
+                    .addHeader("Content-Length", videoBytes.size.toString())
+                    .addHeader("Content-Type", "video/mp4")
+                    .put(videoBytes.toRequestBody("video/mp4".toMediaType()))
+                    .build()
+
+                client.newCall(pushRequest).execute().use { pushResponse ->
+                    if (pushResponse.code == 201 || pushResponse.code == 200) {
+                        Log.d("LOLA_DEBUG", "SALUTE: 201_CREATED. The birds are singing!")
+                        playSalute(true)
+                        Result.success()
+                    } else {
+                        Log.e("LOLA_DEBUG", "PUSH_FAIL: Code ${pushResponse.code}")
+                        playSalute(false)
+                        Result.failure()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("LOLA_DEBUG", "CRASH: Elves tripped: ${e.message}")
+            playSalute(false)
+            Result.failure()
+        }
     }
 }

@@ -30,17 +30,42 @@ fun EngineRoom(
         Column(modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text("⚙️ ENGINE ROOM", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             Spacer(modifier = Modifier.height(24.dp))
-            OutlinedTextField(value = keys, onValueChange = { keys = it }, modifier = Modifier.fillMaxWidth().height(100.dp), label = { Text("API KEYS") })
+
+            OutlinedTextField(
+                value = keys,
+                onValueChange = { keys = it },
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                label = { Text("GEMINI 3 KEY POOL (One per line)") }
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(value = prompts, onValueChange = { prompts = it }, modifier = Modifier.fillMaxWidth().height(150.dp), label = { Text("FACTORY PROMPT") })
+
+            OutlinedTextField(
+                value = prompts,
+                onValueChange = { prompts = it },
+                modifier = Modifier.fillMaxWidth().height(150.dp),
+                label = { Text("LOLA PROMPT CONFIG") }
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
-            Text("SYSTEM LOG (NERD VIEW)", fontSize = 12.sp, color = Color.Cyan, fontWeight = FontWeight.Bold)
+            Text("LIVE TELEMETRY (LOLA_DEBUG)", fontSize = 12.sp, color = Color.Cyan, fontWeight = FontWeight.Bold)
+
             Box(modifier = Modifier.fillMaxWidth().height(150.dp).background(Color.Black, RoundedCornerShape(4.dp)).padding(8.dp)) {
-                Text(text = logs, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 10.sp, modifier = Modifier.verticalScroll(rememberScrollState()))
+                Text(
+                    text = logs,
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
             }
+
             Spacer(modifier = Modifier.height(32.dp))
-            Button(onClick = { onSave(keys, prompts) }, modifier = Modifier.fillMaxWidth().height(55.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) {
-                Text("SAVE CONFIG", fontWeight = FontWeight.Bold, color = Color.White)
+            Button(
+                onClick = { onSave(keys, prompts) },
+                modifier = Modifier.fillMaxWidth().height(55.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+            ) {
+                Text("SAVE & REBOOT ENGINE", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
